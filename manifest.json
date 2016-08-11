@@ -1,0 +1,46 @@
+{
+  "name": "MoonshineAddon",
+  "version": "1.3.1",
+  "description": "Moonshine: Addon for Generals Passing",
+  "options_page": "options.html",
+  "manifest_version": 2,
+  "background": {
+    "page": "background.html"
+  },
+  "icons": {
+    "16" : "images/moon16.png",
+    "48" : "images/moon48.png",
+    "128" : "images/moon128.png"
+  },
+  "browser_action": {
+    "default_icon": "images/moon16.png",
+    "default_popup": "popup.html",
+    "default_title": "MoonshineAddon"
+  },
+   "content_scripts": [{
+     "js": ["jquery-1.7.min.js", 
+            "gawkblocker.js", 
+            "./jquery-ui/external/jquery/jquery.js", 
+            "./jquery-ui/jquery-ui.min.js"],
+     "css": [ "popup_view.css" ],
+     "matches": ["http://*/*", "https://*/*"]
+   },
+    {
+      "matches": ["http://*/*", "https://*/*"],
+      "js": ["script.js"],
+      "run_at": "document_start"
+    }
+   ],
+   "content_security_policy": "script-src 'self' 'unsafe-eval'; object-src 'self'",
+  "permissions": [
+    "webRequest",
+    "webRequestBlocking",
+    "tabs",
+    "http://*/*", "https://*/*",
+    "alarms",
+    "notifications" 
+  ],
+   "web_accessible_resources": [
+    "images/GB-48.png"
+  ]
+}
