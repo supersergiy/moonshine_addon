@@ -17,7 +17,7 @@ var SM = (function () {
 }());
 
 var warningId = 'notification.warning';
-
+var MOONSHINE_URL = "http://moonshine20.pspxthvkvp.us-west-2.elasticbeanstalk.com"//"http://moonshine.3gu38medap.us-west-2.elasticbeanstalk.com"
 
 function extractDomain(url) {
     var domain;
@@ -39,7 +39,6 @@ var GB = (function (SM) {
     var my = {};
 
     my.workSites = {
-
     }
 
     my.funSites = {
@@ -51,7 +50,6 @@ var GB = (function (SM) {
     }
 
     my.couldBeBothSites = {
-
     }
 
     my.requestedSites = {
@@ -60,12 +58,7 @@ var GB = (function (SM) {
     my.prefetchedSites = {
     }
 
-    my.allLists = {
-        "workSites" : my.workSites, 
-        "funSites"  : my.funSites, 
-        "couldBeBothSites" : my.couldBeBothSites,
-        "requestedSites" : my.requestedSites, 
-        "prefetchedSites" : my.prefetchedSites
+    my.exceptionSites = {
     }
 
     if (!SM.get("funSites")) {
@@ -90,7 +83,10 @@ var GB = (function (SM) {
                 }
             }
             else {
-                console.log("Unknown item type: " + list[item]);
+                //console.log("Unknown item type: " + list[item] + ", string assumed");
+                if (s.match(item)) {
+                    return true;
+                }
             }
         }
         return false;
@@ -128,6 +124,19 @@ var GB = (function (SM) {
         }
     }
 
+    my.getUrlRedirection = function(site) {
+        console.log("Checking redirection...")
+        if (my.doesStringMatchList(site, my.prefetchedSites) && !my.doesStringMatchList(site, my.exceptionSites)) {
+            console.log("redirect url found: " + site)
+            site_without_prefix = site.replace(/.*?:\/\//g, "");
+            return "http://moonshine.cs.princeton.edu/" + site_without_prefix; //TODO: do this
+        }
+        else {
+            //console.log(my.doesStringMatchList(site, my.prefetchedSites))
+            //console.log(my.doesStringMatchList(site, my.exceptionSites))
+        }
+    }
+
     my.allowedToVisit = function(site) {
         var fetchStatus = my.getUrlFetchStatus(site)
         if (fetchStatus === "missing") {
@@ -156,7 +165,7 @@ var GB = (function (SM) {
             console.log("sending request for " + site)
             my.requestedSites[extractDomain(site)] = "string";
 
-            xhr.open("GET", "http://moonshine.3gu38medap.us-west-2.elasticbeanstalk.com/request_" + kind + "_url?url=" + site, true);
+            xhr.open("GET", MOONSHINE_URL + "/request_" + kind + "_url?url=" + site, true);
             xhr.onreadystatechange = function() {
               if (xhr.readyState == 4) {
                 // JSON.parse does not evaluate the attacker's scripts.
@@ -178,7 +187,7 @@ var GB = (function (SM) {
         //console.log("sending request for " + site + " (" + kind + ")")
         my.requestedSites[extractDomain(site)] = "string";
 
-        xhr.open("GET", "http://moonshine.3gu38medap.us-west-2.elasticbeanstalk.com/access_" + kind + "_url?url=" + site, true);
+        xhr.open("GET", MOONSHINE_URL + "/access_" + kind + "_url?url=" + site, true);
 
         xhr.onreadystatechange = function() {
           if (xhr.readyState == 4) {
@@ -216,21 +225,30 @@ var GB = (function (SM) {
     }*/
 
     my.updateFetchedList = function () {
-        var xhr = new XMLHttpRequest();
+        var xhr1 = new XMLHttpRequest();
 
-        xhr.open("GET", "http://moonshine.3gu38medap.us-west-2.elasticbeanstalk.com/get_worklist", true);
-        xhr.onreadystatechange = function() {
-          if (xhr.readyState == 4) {
+        //send a request for fetch list
+        xhr1.open("GET", MOONSHINE_URL + "/get_worklist", true);
+        xhr1.onreadystatechange = function() {
+          if (xhr1.readyState == 4) {
             // JSON.parse does not evaluate the attacker's scripts.
             //var resp = JSON.parse(xhr.responseText);
-            console.log("New prefetchedSites: " + xhr.responseText)
-            my.prefetchedSites = JSON.parse(xhr.responseText)
+            console.log("New prefetchedSites: " + xhr1.responseText)
+            my.prefetchedSites = JSON.parse(xhr1.responseText)
           }
         }
-        xhr.send();
+        xhr1.send();
 
-        //flush out the fun sites to hardrive every time we update fetch list, so about every minute
-
+        var xhr2 = new XMLHttpRequest();
+        //send a request for exception list
+        xhr2.open("GET", MOONSHINE_URL + "/get_exceptions", true);
+        xhr2.onreadystatechange = function() {
+          if (xhr2.readyState == 4) {
+            console.log("New exceptionSites: " + xhr2.responseText)
+            my.exceptionSites = JSON.parse(xhr2.responseText)
+          }
+        }
+        xhr2.send();
     }
 
 

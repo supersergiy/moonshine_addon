@@ -28,10 +28,7 @@ chrome.tabs.onRemoved.addListener(onRemovedListener);
 
 
 console.log("Moonshine started!\n")
-
-
 GB.updateFetchedList();
-ALARM_NAME = 'getNewListAlarm';
 
 Object.size = function(obj) {
     var size = 0, key;
@@ -42,6 +39,7 @@ Object.size = function(obj) {
 };
 
 
+ALARM_NAME = 'getNewListAlarm';
 if (!chrome.alarms.get(ALARM_NAME, function(a) { })) {
         console.log(Date.now() + ": Alarm created");
         chrome.alarms.create(ALARM_NAME, {delayInMinutes: 1, periodInMinutes: 1});
@@ -79,11 +77,22 @@ chrome.runtime.onMessage.addListener(
   function(request, sender, sendResponse) {
     
     if (request.type === "purposeReport") {
-        console.log("Handle 1: " + request.domain)
         GB.handleNewUrl(request.domain, request.purpose, "webpage")
     }
     else if (request.type === "urlQuery") {
-        sendResponse({allowedToVisit: GB.allowedToVisit(request.url), fetchStatus: GB.getUrlFetchStatus(request.url), purpose: GB.getUrlPurpose(request.url)});
+        response = {
+                        allowedToVisit: GB.allowedToVisit(request.url), 
+                        fetchStatus: GB.getUrlFetchStatus(request.url), 
+                        purpose: GB.getUrlPurpose(request.url)
+                    }
+
+        if (response.allowedToVisit === true && response.purpose === "workSites") {
+            redirectHere = GB.getUrlRedirection(request.url)
+            if (redirectHere !== null) {
+                response['redirectHere'] = redirectHere
+            }
+        }
+        sendResponse(response);
     }
 
   });
@@ -107,7 +116,6 @@ setTimeout(function() {
             }
             else {
                 requesterUrl = tabs[details.tabId].url
-   
 
                 if (GB.getUrlPurpose(details.url) === "workSites" && details.type === "main_frame") {
                     GB.sendAccessReport(details.url, "webpage")
@@ -176,7 +184,6 @@ chrome.tabs.onCreated.addListener(function (tab) {
     else {
         openerUrl = tabs[tab.openerTabId].url
         if (GB.getUrlPurpose(openerUrl) === "funSites" && GB.getUrlPurpose(tab.ur) === "unseen") {
-            console.log("Handle 3: " + request.domain)
             GB.handleNewUrl(tab.url, "funSites", "webpage")
         }
         else {
@@ -185,6 +192,48 @@ chrome.tabs.onCreated.addListener(function (tab) {
     }
     console.log(JSON.stringify(tab))
 })       
+
+
+setTimeout(
+        function() {
+            chrome.webRequest.onCompleted.addListener(
+                function (details) {
+                    if (details.statusCode === 404 && details.type === "main_frame") {
+                        url = details.url
+                        if (url[url.length - 1] === '/') {
+                            url.pop()
+                        }
+
+                        tokens = details.url.split('/')
+                        last_token = tokens.pop()
+                        redirect_to = tokens.join('/')
+                        page = ""
+                        hash = ""
+                        if (last_token.split('#').length !== 1) {
+                            hash_array = last_token.split('#')
+                            hash = hash_array.pop()
+                            page = hash_array.join('#')
+                        }
+                        else {
+                            hash = ""
+                            page = last_token
+                        }
+
+                        if (!page.endsWith(".html")) {
+                            page = page + ".html"
+                            redirect_to = redirect_to + '/' + page
+                            if (hash !== "") {
+                                redirect_to = redirect_to + '#' + hash
+                            }
+                            chrome.tabs.update(details.tabId, {url: redirect_to});
+                        }
+                    }
+                }, 
+                {urls: ["*://moonshine.cs.princeton.edu/*"]}
+            );
+        }, 
+        500)
+
 /*
 chrome.tabs.onCreated.addListener(function(tab) {
     if (!GB.allowedToVisit(tab.url)) {

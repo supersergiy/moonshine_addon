@@ -6,6 +6,7 @@ chrome.runtime.sendMessage({type: "urlQuery", url: document.URL}, function(respo
 	//	chrome.extension.getBackgroundPage().GB.sendAccessReport(document.url, "webpage")
 	//}
 	console.log("Purpose of this page: " + response.purpose)
+	
 
 	if (response.allowedToVisit === false && response.fetchStatus !== "requested") {
 		window.stop();
@@ -65,6 +66,13 @@ chrome.runtime.sendMessage({type: "urlQuery", url: document.URL}, function(respo
 	}
 	else {
 		console.log("Moonshine: URL approved!");
+		
+		if (response.redirectHere !== undefined) {
+			window.stop();
+			console.log("redirecting to " + JSON.stringify(response.redirectHere));
+			setTimeout(function() {location.replace(response.redirectHere)}, 1)
+		}
+
 	}
 })
 
