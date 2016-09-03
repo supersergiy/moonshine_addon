@@ -29,6 +29,8 @@ chrome.tabs.onRemoved.addListener(onRemovedListener);
 
 console.log("Moonshine started!\n")
 GB.updateFetchedList();
+GB.getUserName();
+console.log("Username is " + GB.userName)
 
 Object.size = function(obj) {
     var size = 0, key;
@@ -106,7 +108,15 @@ function getDomain(url) {
   return url.split('/')[0];
 }
 
+function reportSearchFail(tabid) {
+    console.log("search failed from tab " + tabid)
 
+    chrome.tabs.sendMessage(tabid, { text: "get_search_query" }, function(query) {
+        console.log("Query: " + JSON.stringify(query))
+        GB.failedSearches[query] =  new Date
+        console.log(JSON.stringify(GB.failedSearches))
+    });
+}
 setTimeout(function() {
     chrome.webRequest.onBeforeRequest.addListener(
         function(details) {

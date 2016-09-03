@@ -1,0 +1,6 @@
+dk2ahqi87lfwu.cloudfront.net": "string", 
+"betanews.com": "string", 
+"global.krx.co.kr": "string",
+
+betanews.com
+global.krx.co.kr

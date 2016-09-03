@@ -18,10 +18,11 @@
     "default_title": "MoonshineAddon"
   },
    "content_scripts": [{
-     "js": ["jquery-1.7.min.js", 
-            "gawkblocker.js", 
-            "./jquery-ui/external/jquery/jquery.js", 
-            "./jquery-ui/jquery-ui.min.js"],
+     "js": ["./jquery-ui/external/jquery/jquery.js", 
+            "./jquery-ui/jquery-ui.min.js",
+            "jquery-1.7.min.js", 
+            "gawkblocker.js"
+            ],
      "css": [ "popup_view.css" ],
      "matches": ["http://*/*", "https://*/*"]
    },

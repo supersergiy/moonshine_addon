@@ -38,6 +38,8 @@ function extractDomain(url) {
 var GB = (function (SM) {
     var my = {};
 
+    my.failedSearches = {}
+
     my.workSites = {
     }
 
@@ -58,8 +60,14 @@ var GB = (function (SM) {
     my.prefetchedSites = {
     }
 
+    my.fetchedSites = {
+
+    }
+
     my.exceptionSites = {
     }
+
+    my.userName = "Default"
 
     if (!SM.get("funSites")) {
         SM.put("funSites", JSON.stringify(my.funSites))
@@ -69,7 +77,7 @@ var GB = (function (SM) {
     }
     console.log("funSites" + ": " + JSON.stringify(my.funSites))
   
-    
+
     my.doesStringMatchList = function(s, list) {
         for (item in list) {
             if (list[item] === "regex") {
@@ -78,7 +86,10 @@ var GB = (function (SM) {
                 }
             }
             else if (list[item] === "string") {
-                if (s.match(item)) {
+                item = extractDomain(item)
+                match = s.replace(/http:\/\/|https:\/\//gi, "").match(item)
+
+                if (match && match.index <= 4) {
                     return true;
                 }
             }
@@ -126,7 +137,7 @@ var GB = (function (SM) {
 
     my.getUrlRedirection = function(site) {
         console.log("Checking redirection...")
-        if (my.doesStringMatchList(site, my.prefetchedSites) && !my.doesStringMatchList(site, my.exceptionSites)) {
+        if (my.doesStringMatchList(site, my.fetchedSites) && !my.doesStringMatchList(site, my.exceptionSites)) {
             console.log("redirect url found: " + site)
             site_without_prefix = site.replace(/.*?:\/\//g, "");
             return "http://moonshine.cs.princeton.edu/" + site_without_prefix; //TODO: do this
@@ -148,6 +159,7 @@ var GB = (function (SM) {
     }
 
     my.sendUrlReport = function(site, kind) {
+        console.log("Reporting url...")
         if (kind !== "webpage" && kind !== "content") {
             console.log("Bug detected! Kind is neither 'webpage' nor 'content'")
             return;
@@ -165,7 +177,9 @@ var GB = (function (SM) {
             console.log("sending request for " + site)
             my.requestedSites[extractDomain(site)] = "string";
 
-            xhr.open("GET", MOONSHINE_URL + "/request_" + kind + "_url?url=" + site, true);
+            request_report_url = MOONSHINE_URL + "/request_" + kind + "_url?user=" + JSON.stringify(my.userName) + "&url=" + JSON.stringify(site)
+            xhr.open("GET", request_report_url, true);
+            console.log(request_report_url)
             xhr.onreadystatechange = function() {
               if (xhr.readyState == 4) {
                 // JSON.parse does not evaluate the attacker's scripts.
@@ -187,13 +201,14 @@ var GB = (function (SM) {
         //console.log("sending request for " + site + " (" + kind + ")")
         my.requestedSites[extractDomain(site)] = "string";
 
-        xhr.open("GET", MOONSHINE_URL + "/access_" + kind + "_url?url=" + site, true);
-
+        request_report_url = MOONSHINE_URL + "/access_" + kind + "_url?user=" + JSON.stringify(my.userName) + "&url=" + JSON.stringify(site)
+        xhr.open("GET", request_report_url, true);
+        console.log(request_report_url)
         xhr.onreadystatechange = function() {
           if (xhr.readyState == 4) {
             // JSON.parse does not evaluate the attacker's scripts.
             //var resp = JSON.parse(xhr.responseText);
-            //console.log("Response: " + xhr.responseText)
+            console.log("Response: " + xhr.responseText)
           }
         }
         xhr.send();
@@ -249,7 +264,32 @@ var GB = (function (SM) {
           }
         }
         xhr2.send();
+
+        var xhr3 = new XMLHttpRequest();
+        //send a request for exception list
+        xhr3.open("GET", MOONSHINE_URL + "/get_fetchlist", true);
+        xhr3.onreadystatechange = function() {
+          if (xhr3.readyState == 4) {
+            console.log("New fetchedSites: " + xhr3.responseText)
+            my.fetchedSites = JSON.parse(xhr3.responseText)
+          }
+        }
+        xhr3.send();
     }
+
+    my.getUserName = function () {
+        if (!SM.get("userName")) {
+            my.userName = prompt("Please enter username", "GeorgeMartin");
+            while (!/^[a-zA-Z]+$/.test(my.userName)) {
+                my.userName = prompt("Please enter username (Please only use English letters)", "GeorgeMartin");
+            }
+            SM.put("userName", JSON.stringify(my.userName))
+        }
+        else {
+            my.userName = JSON.parse(SM.get("userName"))
+        }
+    }
+
 
 
     return my;
