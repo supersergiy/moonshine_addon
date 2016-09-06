@@ -140,22 +140,42 @@ $(document).ready(function(){
                 objTo.appendChild(divtest)
 
                 console.log(objTo.querySelector("exception_buttons"))
-                for (i = 0; i < button_list.length; i++){
-                    key = button_list[i].replace(new RegExp(' ', 'g'), "")
-                    console.log("#" + key)
-                    objTo.querySelector("#" + key).addEventListener("click", function() {
-                        reportPageProblem(key)
-                        window.close()
-                    })
+                
+                key = button_list[i].replace(new RegExp(' ', 'g'), "")
 
-                }
+                objTo.querySelector("#" + "WebpageAbsent").addEventListener("click", function() {
+                    reportPageProblem("WebpageAbsent")
+                    window.close()
+                })
+
+                objTo.querySelector("#" + "CorruptedContent").addEventListener("click", function() {
+                    reportPageProblem("CorruptedContent")
+                    window.close()
+                })
+
+                objTo.querySelector("#" + "NotWorkRelated").addEventListener("click", function() {
+                    reportPageProblem("NotWorkRelated")
+                    window.close()
+                })
+
+                objTo.querySelector("#" + "Ivedonethisbefore").addEventListener("click", function() {
+                    reportPageProblem("Ivedonethisbefore")
+                    window.close()
+                })
+
+                objTo.querySelector("#" + "OtherProblem").addEventListener("click", function() {
+                    reportPageProblem("OtherProblem")
+                    window.close()
+                })
+
+                
             }
         }
         else{ 
             chrome.runtime.sendMessage({type: "urlQuery", url: tabs[0].url}, function(response) {
                 if (response.purpose != "workSites") {
                     content_html += "<h2>Report Needed External Content</h2>"
-                    content_html += "<select>"
+                    content_html += "<select id=Query>"
 
                     for (failed_query in chrome.extension.getBackgroundPage().GB.failedSearches){
                         content_html += "<option>" + failed_query + "</opiton>"
@@ -166,8 +186,9 @@ $(document).ready(function(){
                     divtest.innerHTML = content_html
                     objTo.appendChild(divtest)
                     objTo.querySelector("#" + "SubmitMissing").addEventListener("click", function() {
-                        reportNeededExternalContent(tabs[0].url)
-                        window.close()
+                        query = document.querySelector("#Query").value
+                        reportNeededExternalContent(tabs[0].url, query)
+                        //window.close()
                     })
                 }
                 else {
@@ -204,7 +225,7 @@ function reportPageProblem(errorCode) {
         var xhr = new XMLHttpRequest();
         console.log("sending exception report for " + extractDomain(curr_url))
 
-        xhr.open("GET", MOONSHINE_URL + "/add_exception?url=" + curr_url + "&reason=" + errorCode, true);
+        xhr.open("GET", MOONSHINE_URL + "/add_exception?url=" + encodeURIComponent(curr_url) + "&reason=" + encodeURIComponent(errorCode), true);
         xhr.onreadystatechange = function() {
           if (xhr.readyState == 4) {
             chrome.extension.getBackgroundPage().GB.exceptionSites[curr_url] = errorCode;
@@ -217,17 +238,16 @@ function reportPageProblem(errorCode) {
     });
 }
 
-function reportNeededExternalContent(url) {
+function reportNeededExternalContent(url, query) {
     var xhr = new XMLHttpRequest();
     console.log("sending needed content report for " + extractDomain(url))
+    url = MOONSHINE_URL + "/external_needed_content?url=" + encodeURIComponent(url) + "&query=" + encodeURIComponent(query) + "&user=" + encodeURIComponent(chrome.extension.getBackgroundPage().GB.userName)
+    console.log(url)
+    xhr.open("GET", url, true);
 
-    xhr.open("GET", MOONSHINE_URL + "/add_exception?url=" + curr_url + "&reason=" + errorCode, true);
     xhr.onreadystatechange = function() {
       if (xhr.readyState == 4) {
-        chrome.extension.getBackgroundPage().GB.exceptionSites[curr_url] = errorCode;
-        console.log(curr_url)
-        chrome.tabs.update(tab_id, {url: "http://" + curr_url});
-        
+        delete chrome.extension.getBackgroundPage().GB.failedSearches[query]
       }
     }
     xhr.send();

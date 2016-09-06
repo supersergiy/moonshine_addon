@@ -79,13 +79,15 @@ chrome.runtime.onMessage.addListener(
   function(request, sender, sendResponse) {
     
     if (request.type === "purposeReport") {
-        GB.handleNewUrl(request.domain, request.purpose, "webpage")
+        GB.handleNewUrl(request.domain, request.purpose, "webpage", request.subtype)
     }
     else if (request.type === "urlQuery") {
+
         response = {
                         allowedToVisit: GB.allowedToVisit(request.url), 
                         fetchStatus: GB.getUrlFetchStatus(request.url), 
-                        purpose: GB.getUrlPurpose(request.url)
+                        purpose: GB.getUrlPurpose(request.url),
+                        response: GB.getUrlSubtype(request.url)
                     }
 
         if (response.allowedToVisit === true && response.purpose === "workSites") {
@@ -115,6 +117,12 @@ function reportSearchFail(tabid) {
         console.log("Query: " + JSON.stringify(query))
         GB.failedSearches[query] =  new Date
         console.log(JSON.stringify(GB.failedSearches))
+
+        var xhr = new XMLHttpRequest();
+        xhr.open("GET", MOONSHINE_URL + "/failed_search?query=" + encodeURIComponent(query) + "&user=" + encodeURIComponent(GB.userName), true);
+        xhr.onreadystatechange = function() {}
+        xhr.send();
+
     });
 }
 setTimeout(function() {
@@ -126,6 +134,11 @@ setTimeout(function() {
             }
             else {
                 requesterUrl = tabs[details.tabId].url
+
+                /*allow all content*/
+                if (details.type !== "main_frame") {
+                    return {}
+                }
 
                 if (GB.getUrlPurpose(details.url) === "workSites" && details.type === "main_frame") {
                     GB.sendAccessReport(details.url, "webpage")
@@ -140,7 +153,8 @@ setTimeout(function() {
                 if (details.url === requesterUrl) {
                     return {}
                 }
-                else if  (GB.getUrlPurpose(requesterUrl) === "funSites" && details.type !== "main_frame") { //want to allow fun websites to pull in content
+                else if  (GB.getUrlPurpose(requesterUrl) === "funSites" || GB.getUrlPurpose(requesterUrl) === "unseen" 
+                                                                        && details.type !== "main_frame") { //want to allow fun websites to pull in content
                     return {}
                 }
                 else if (GB.allowedToVisit(details.url) === true && GB.getUrlPurpose(details.url) === "workSites") { //want to allow pull anything that's allowed to be a new tab
@@ -187,13 +201,13 @@ setTimeout(function() {
     }, 500);
   
 
-chrome.tabs.onCreated.addListener(function (tab) {
+/*chrome.tabs.onCreated.addListener(function (tab) {
     if (tab.openerTabId === -1 || tabs[tab.openerTabId] === undefined) {
         return;
     }
     else {
         openerUrl = tabs[tab.openerTabId].url
-        if (GB.getUrlPurpose(openerUrl) === "funSites" && GB.getUrlPurpose(tab.ur) === "unseen") {
+        if (GB.getUrlPurpose(openerUrl) === "funSites" && GB.getUrlPurpose(tab.url) === "unseen") {
             GB.handleNewUrl(tab.url, "funSites", "webpage")
         }
         else {
@@ -201,7 +215,7 @@ chrome.tabs.onCreated.addListener(function (tab) {
         }
     }
     console.log(JSON.stringify(tab))
-})       
+})*/       
 
 
 setTimeout(
@@ -229,7 +243,7 @@ setTimeout(
                             page = last_token
                         }
 
-                        if (!page.endsWith(".html")) {
+                        if (!page.endsWith(".html") && !page.endsWith(".htm") && !page.endsWith(".pdf")) {
                             page = page + ".html"
                             redirect_to = redirect_to + '/' + page
                             if (hash !== "") {
@@ -244,6 +258,48 @@ setTimeout(
         }, 
         500)
 
+chrome.webNavigation.onCreatedNavigationTarget.addListener(function(details){
+        console.log(JSON.stringify(details))
+        chrome.tabs.get(details.sourceTabId, function(tab) {
+            if (GB.getUrlPurpose(tab.url) == "workSites" && GB.getUrlPurpose(details.url) == "unseen") {
+                console.log('Sending message to ' + details.tabId)
+                setTimeout(function(){
+                                 console.log("Message dispatched!")
+                                 chrome.tabs.sendMessage(details.tabId, { text: "aks_user_for_purpose" })
+                            },
+                          700)
+            }
+        })
+    
+})
+
+chrome.webNavigation.onCommitted.addListener(function(details){
+    if (details.frameId === 0) {
+        console.log(JSON.stringify(details.transitionType))
+        console.log(GB.getUrlPurpose(details.url))
+        console.log(GB.getUrlSubtype(details.url))
+
+    }
+    if (details.frameId === 0 && details.transitionType === "typed" && 
+        (GB.getUrlPurpose(details.url) === "unseen" || (GB.getUrlPurpose(details.url) === "workSites" && GB.getUrlSubtype(details.url) === "string"))) {
+        console.log('Sending message to ' + details.tabId)
+        setTimeout(function(){
+                         console.log("Message dispatched!")
+                         chrome.tabs.sendMessage(details.tabId, { text: "aks_user_for_purpose" })
+                    },
+                  100)
+    }
+})
+    
+
+chrome.extension.onMessage.addListener(
+    function(message, sender, sendResponse) {
+        if ( message.type == 'getTabId' )
+        {
+            sendResponse({ tabId: sender.tab.id });
+        }
+    }
+);
 /*
 chrome.tabs.onCreated.addListener(function(tab) {
     if (!GB.allowedToVisit(tab.url)) {

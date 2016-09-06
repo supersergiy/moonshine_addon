@@ -43,12 +43,14 @@ var GB = (function (SM) {
     my.workSites = {
     }
 
+    my.workTypes = ['developmentSites', 'researchSites', 'appSites', 'otherWorkSites']
+
     my.funSites = {
         "facebook.com"         : "string",
         "google.com"           : "string",
         "gmail.com"            : "string",
         "youtube.com"          : "string",
-        "^chrome:\/\/."        : "regex"
+        "chrome:"              : "string"
     }
 
     my.couldBeBothSites = {
@@ -79,23 +81,33 @@ var GB = (function (SM) {
   
 
     my.doesStringMatchList = function(s, list) {
+        if (!s) {
+            return "unseen"
+        }
         for (item in list) {
             if (list[item] === "regex") {
-                if (s.match(new RegExp(item))) {
-                    return true;
+                s_match = s.match("chrome:")
+                i_match = item.match("chrome")
+
+                if (i_match !== null) {
+                    delete list[item]
+                    list["chrome:"] = "chromeThing"
+
+                    if (s_match && s_match.index === 0) {
+                        return true;
+                    }
+                }
+                else {
+                    console.log("DEPRECATED REGEX IN A LIST: " + item)
+                    console.log(item.match("chrome"))
+                    console.log("chrome".match(item))
                 }
             }
-            else if (list[item] === "string") {
+            else {
                 item = extractDomain(item)
                 match = s.replace(/http:\/\/|https:\/\//gi, "").match(item)
 
                 if (match && match.index <= 4) {
-                    return true;
-                }
-            }
-            else {
-                //console.log("Unknown item type: " + list[item] + ", string assumed");
-                if (s.match(item)) {
                     return true;
                 }
             }
@@ -104,7 +116,7 @@ var GB = (function (SM) {
     }
 
     my.getUrlPurpose = function(site) {
-        if (my.doesStringMatchList(site, my.workSites) || my.doesStringMatchList(site, my.prefetchedSites) || my.doesStringMatchList(site, my.requestedSites)) {
+        if (my.doesStringMatchList(site, my.workSites) || my.doesStringMatchList(site, my.workSites) || my.doesStringMatchList(site, my.requestedSites)) {
             return "workSites";
         }
         else if (my.doesStringMatchList(site, my.funSites)) {
@@ -118,13 +130,24 @@ var GB = (function (SM) {
         }
     }
 
+    my.getUrlSubtype = function(site) {
+        if (my.getUrlPurpose(site) === "workSites"){
+            console.log(extractDomain(site) + " " + my.workSites[extractDomain(site)])
+            console.log(extractDomain in my.workSites)
+            return my.workSites[extractDomain(site)]
+        }
+        else {
+            return "notDefinedForFunSites"
+        }
+    }
+
     my.getUrlFetchStatus = function(site) {
         var purpose = my.getUrlPurpose(site);
 
         if (purpose === "funSites") {
             return "noNeed"
         }
-        else if (my.doesStringMatchList(site, my.prefetchedSites)) {
+        else if (my.doesStringMatchList(site, my.workSites)) {
             return "fetched"
         }
         else if (my.doesStringMatchList(site, my.requestedSites)) {
@@ -137,7 +160,7 @@ var GB = (function (SM) {
 
     my.getUrlRedirection = function(site) {
         console.log("Checking redirection...")
-        if (my.doesStringMatchList(site, my.fetchedSites) && !my.doesStringMatchList(site, my.exceptionSites)) {
+        if (my.doesStringMatchList(site, my.fetchedSites) && !my.doesStringMatchList(site, my.exceptionSites) && my.getUrlSubtype[site] !== "string") {
             console.log("redirect url found: " + site)
             site_without_prefix = site.replace(/.*?:\/\//g, "");
             return "http://moonshine.cs.princeton.edu/" + site_without_prefix; //TODO: do this
@@ -158,7 +181,7 @@ var GB = (function (SM) {
         }
     }
 
-    my.sendUrlReport = function(site, kind) {
+    my.sendUrlReport = function(site, kind, subtype) {
         console.log("Reporting url...")
         if (kind !== "webpage" && kind !== "content") {
             console.log("Bug detected! Kind is neither 'webpage' nor 'content'")
@@ -177,7 +200,7 @@ var GB = (function (SM) {
             console.log("sending request for " + site)
             my.requestedSites[extractDomain(site)] = "string";
 
-            request_report_url = MOONSHINE_URL + "/request_" + kind + "_url?user=" + JSON.stringify(my.userName) + "&url=" + JSON.stringify(site)
+            request_report_url = MOONSHINE_URL + "/request_" + kind + "_url?user=" + JSON.stringify(my.userName) + "&url=" + encodeURIComponent(site) + "&subtype=" + JSON.stringify(subtype)
             xhr.open("GET", request_report_url, true);
             console.log(request_report_url)
             xhr.onreadystatechange = function() {
@@ -201,9 +224,10 @@ var GB = (function (SM) {
         //console.log("sending request for " + site + " (" + kind + ")")
         my.requestedSites[extractDomain(site)] = "string";
 
-        request_report_url = MOONSHINE_URL + "/access_" + kind + "_url?user=" + JSON.stringify(my.userName) + "&url=" + JSON.stringify(site)
-        xhr.open("GET", request_report_url, true);
+        request_report_url = MOONSHINE_URL + "/access_" + kind + "_url?user=" + encodeURIComponent(my.userName) + "&url=" + encodeURIComponent(site)
         console.log(request_report_url)
+        xhr.open("GET", request_report_url, true);
+        
         xhr.onreadystatechange = function() {
           if (xhr.readyState == 4) {
             // JSON.parse does not evaluate the attacker's scripts.
@@ -214,20 +238,20 @@ var GB = (function (SM) {
         xhr.send();
     }
 
-    my.handleNewUrl = function (site, purpose, kind) {
+    my.handleNewUrl = function (site, purpose, kind, subtype="string") {
         console.log("Handling new url ", site)
         if (purpose === "workSites") {
-            my.workSites[extractDomain(site)] = "string";
-            my.sendUrlReport(site, kind)
+            my.workSites[extractDomain(site)] = subtype;
+            my.sendUrlReport(site, kind, subtype)
         }
         else if (purpose === "funSites") {
-            my.funSites[extractDomain(site)] = "string";
+            my.funSites[extractDomain(site)] = subtype;
             SM.put("funSites", JSON.stringify(my.funSites))
         }
         else if (purpose === "couldBeBothSites") {
-            my.funSites[extractDomain(site)] = "string";
+            my.funSites[extractDomain(site)] = subtype;
             SM.put("funSites", JSON.stringify(my.funSites))
-            my.sendUrlReport(site, kind)
+            my.sendUrlReport(site, kind, subtype)
 
         }
     }
@@ -248,8 +272,8 @@ var GB = (function (SM) {
           if (xhr1.readyState == 4) {
             // JSON.parse does not evaluate the attacker's scripts.
             //var resp = JSON.parse(xhr.responseText);
-            console.log("New prefetchedSites: " + xhr1.responseText)
-            my.prefetchedSites = JSON.parse(xhr1.responseText)
+            console.log("New workSites: " + xhr1.responseText)
+            my.workSites = JSON.parse(xhr1.responseText)
           }
         }
         xhr1.send();
